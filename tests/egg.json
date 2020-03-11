@@ -1,0 +1,23 @@
+[
+  {
+    "name": "tuple-00",
+    "code": "file",
+    "result": {
+      "value": "20"
+    }
+  },
+  {
+    "name": "tuple-01",
+    "code": "file",
+    "result": {
+      "value": "10\n20\n60"
+    }
+  },
+  {
+    "name": "tuple-02",
+    "code": "file",
+    "result": {
+      "value": "(10, 20, 30)"
+    }
+  }
+]

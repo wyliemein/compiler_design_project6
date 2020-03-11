@@ -1,0 +1,10 @@
+:set -fwarn-unused-binds -fwarn-unused-imports -fwarn-orphans
+:set -ibin:lib:tests
+
+:def docs_ const $ return $ unlines [":!stack haddock"]
+:def docs  const $ return $ unlines [":!stack haddock --open"]
+:def test  const $ return $ unlines ["Test.main"]
+
+:set prompt "\ESC[34m$> \ESC[m"
+
+:l lib/Language/Fox/Runner.hs

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "gc-0",
+    "code": "file",
+    "heap": 6,
+    "result": {
+      "value": "(1, 1, 1)"
+    }
+  },
+  {
+    "name":"gc-0-neg",
+    "code":"file",
+    "heap":5,
+    "result":{
+      "failure":"out of memory"
+    }
+  }
+]

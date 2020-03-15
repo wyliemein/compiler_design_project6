@@ -115,7 +115,12 @@ compileEnv env v@(Boolean {})    = [ compileImm env v  ]
 compileEnv env v@(Id {})         = [ compileImm env v  ]
 
 -- "clear" the stack position for 'x' after executing these instructions for e2
-compileEnv env (Let x e1 e2 _)   = error "TBD:compileEnv:Let"
+compileEnv env (Let x e1 e2 _)   = compileEnv env e1
+                                ++ [ IMov (stackVar i) (Reg EAX)]
+                                ++ compileEnv env' e2
+                                ++ [ clearStackVar i ]
+  where
+    (i, env') = pushEnv x env
 
 compileEnv env (Prim1 o v l)     = compilePrim1 l env o v
 
@@ -124,14 +129,33 @@ compileEnv env (Prim2 o v1 v2 l) = compilePrim2 l env o v1 v2
 compileEnv env (If v e1 e2 l)    = assertType env v TBoolean
                                 ++ IMov (Reg EAX) (immArg env v)
                                  : ICmp (Reg EAX) (repr False)
-                                 : branch l IJe i1s i2s
+                                 : branch (annTag l) IJe i1s i2s
   where
     i1s                          = compileEnv env e1
     i2s                          = compileEnv env e2
 
-compileEnv env (Tuple es _)      = error "TBD:compileEnv"
+compileEnv env (Tuple es l)      = tupleReserve (annTag l) (tupleSize (length es)) ++  -- DO NOT MODIFY THIS LINE 
+                                  [ IMov (Reg EAX) (Reg ESI)
+                                  , IAdd (Reg ESI) (Const (i*4))
+                                  , IMov (Reg EBX) (Const (len*2))
+                                  , IMov (Sized DWordPtr (RegOffset 0 EAX)) (Reg EBX)
+                                  , IMov (pairAddr 1) (Const 0)]                                
+                                  ++ concatMap tupleCopy (zip es [0,1..]) 
+                                  ++ [ IOr (Reg EAX) (typeTag TTuple)]
+  where
+    len                          = length es
+    i                            = if odd len then (len+3)
+                                   else (len+2)
+    tupleCopy (e,n)              = [ IMov (Reg EBX) (immArg env e)
+                                    , IMov (pairAddr (n+2)) (Reg EBX)]
 
-compileEnv env (GetItem vE vI _) = error "TBD:compileEnv"
+
+compileEnv env (GetItem vE vI _) = assertType env vE TTuple ++ 
+                                  [ IMov (Reg EAX) (immArg env vE)
+                                  , ISub (Reg EAX) (typeTag TTuple)
+                                  , IMov (Reg EAX) (Sized DWordPtr (RegOffset (2*(i+4)) EAX))]
+  where
+    Const i                       = immArg env vI 
 
 compileEnv env (App fname vs l)
   | annTail l =
@@ -182,16 +206,16 @@ compilePrim1 l env Add1    v = compilePrim2 l env Plus  v (Number 1 l)
 compilePrim1 l env Sub1    v = compilePrim2 l env Minus v (Number 1 l)
 compilePrim1 l env IsNum   v = isType l env v TNumber
 compilePrim1 l env IsBool  v = isType l env v TBoolean
-compilePrim1 l env IsTuple v = error "TBD:compilePrim1"
+compilePrim1 l env IsTuple v = isType l env v TTuple
 compilePrim1 _ env Print   v = call (Builtin "print") [param env v]
 
 compilePrim2 :: Ann -> Env -> Prim2 -> IExp -> IExp -> [Instruction]
 compilePrim2 _ env Plus    = arith     env addOp
 compilePrim2 _ env Minus   = arith     env subOp
 compilePrim2 _ env Times   = arith     env mulOp
-compilePrim2 l env Less    = error "TBD:compilePrim2"
-compilePrim2 l env Greater = error "TBD:compilePrim2"
-compilePrim2 l env Equal   = error "TBD:compilePrim2"
+compilePrim2 l env Less    = compare (annTag l) env IJl (Just TNumber)
+compilePrim2 l env Greater = compare (annTag l) env IJg (Just TNumber)
+compilePrim2 l env Equal   = compare (annTag l) env IJe Nothing
 
 immArg :: Env -> IExp -> Arg
 immArg _   (Number n _)  = repr n
@@ -240,7 +264,7 @@ overflow = IJo (DynamicErr ArithOverflow)
 isType :: Ann -> Env -> IExp -> Ty -> [Instruction]
 isType l env v ty
   =  cmpType env v ty
-  ++ boolBranch  l IJe
+  ++ boolBranch  (annTag l) IJe
 
 -- | @assertType t@ tests if EAX is a value of type t and exits with error o.w.
 assertType :: Env -> IExp -> Ty -> [Instruction]
@@ -255,6 +279,31 @@ cmpType env v ty
     , IAnd (Reg EBX) (typeMask ty)
     , ICmp (Reg EBX) (typeTag  ty)
     ]
+
+--------------------------------------------------------------------------------
+-- | Comparisons
+--------------------------------------------------------------------------------
+-- | @compare v1 v2@ generates the instructions at the
+--   end of which EAX is TRUE/FALSE depending on the comparison
+--------------------------------------------------------------------------------
+compare :: Tag -> Env -> COp -> Maybe Ty -> IExp -> IExp -> [Instruction]
+compare l env j t v1 v2
+  =  compareCheck env t v1 v2
+  ++ compareVal l env j v1 v2
+
+compareCheck :: Env -> Maybe Ty -> IExp -> IExp -> [Instruction]
+compareCheck _   Nothing  _  _
+  =  []
+compareCheck env (Just t) v1 v2
+  =  assertType env v1 t
+  ++ assertType env v2 t
+
+compareVal :: Tag -> Env -> COp -> IExp -> IExp -> [Instruction]
+compareVal l env j v1 v2
+   = IMov (Reg EAX) (immArg env v1)
+   : IMov (Reg EBX) (immArg env v2)
+   : ICmp (Reg EAX) (Reg EBX)
+   : boolBranch l j
 
 --------------------------------------------------------------------------------
 -- | Assignment
@@ -279,7 +328,7 @@ param env v = Sized DWordPtr (immArg env v)
 --------------------------------------------------------------------------------
 -- | Branching
 --------------------------------------------------------------------------------
-branch :: Ann -> COp -> [Instruction] -> [Instruction] -> [Instruction]
+branch :: Tag -> COp -> [Instruction] -> [Instruction] -> [Instruction]
 branch l j falseIs trueIs = concat
   [ [ j lTrue ]
   , falseIs
@@ -291,9 +340,9 @@ branch l j falseIs trueIs = concat
   where
     lTrue = BranchTrue i
     lDone = BranchDone i
-    i     = annTag l
+    i     = l
 
-boolBranch :: Ann -> COp -> [Instruction]
+boolBranch :: Tag -> COp -> [Instruction]
 boolBranch l j = branch l j [assign EAX False] [assign EAX True]
 
 type AOp = Arg -> Arg -> [Instruction]
@@ -301,6 +350,38 @@ type COp = Label -> Instruction
 
 stackVar :: Int -> Arg
 stackVar i = RegOffset (-4 * i) EBP
+
+pairAddr n                      = Sized DWordPtr (RegOffset (4*n) EAX)
+--------------------------------------------------------------------------------
+-- | tuple Manipulation: use this to allocate space for a tuple
+--------------------------------------------------------------------------------
+-- README-GC
+tupleReserve :: Tag -> Int -> [Instruction]
+tupleReserve l bytes
+  = [ -- check for space
+      IMov (Reg EAX) (LabelVar "HEAP_END")
+    , ISub (Reg EAX) (Const bytes)
+    , ICmp (Reg ESI) (Reg EAX)
+    , IJl  (MemCheck l)   -- if ESI <= HEAP_END - size then OK else try_gc
+    , IJe  (MemCheck l)
+    , IMov (Reg EBX) (Reg ESP)
+    ]
+ ++ call (Builtin "try_gc") [ Reg ESI, Const bytes, Reg EBP, Reg EBX ]
+ ++ [ -- assume gc success if here; EAX holds new ESI
+      IMov (Reg ESI) (Reg EAX)
+    , ILabel (MemCheck l)
+    ]
+
+
+-- | 'tupleSize n' returns the number of bytes to allocate for a tuple with 'n' elements
+
+tupleSize :: Int -> Int
+tupleSize n = 4 * roundToEven (n + 2)     -- add 2 for size, GC-WORD
+
+roundToEven :: Int -> Int
+roundToEven n
+  | n `mod` 2 == 0 = n
+  | otherwise      = n + 1
 
 --------------------------------------------------------------------------------
 -- | Representing Values

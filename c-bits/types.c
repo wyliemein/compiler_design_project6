@@ -70,9 +70,18 @@ int tuple_size(int* base){
 }
 
 void print_tuple(int val){
-	fprintf(stderr, "TBD: print_tuple in c-bits/types.c\n");
-	exit(1);
+	int *base = int_addr(val); // (int *) (val - 1);
+  int size  = tuple_size(base);
+  printf("(");
+  print_val(tuple_at(base, 0));
+  for (int i = 1; i < size; i++){
+    printf(", ");
+    print_val(tuple_at(base, i));
+  }
+  printf(")");
+ 
 }
+
 
 int print_val(int val) {
   if (is_number(val))

@@ -64,8 +64,8 @@ wellFormedE fEnv = go
     go vEnv (Let x e1 e2   _) = duplicateBindErrors vEnv x
                              ++ go vEnv e1
                              ++ go (addEnv x vEnv) e2
-    go vEnv (Tuple es      _) = error "TBD: wellFormedE"
-    go vEnv (GetItem e1 e2 _) = error "TBD: wellFormedE"
+    go vEnv (Tuple es      _) = gos vEnv es
+    go vEnv (GetItem e1 e2 _) = gos vEnv [e1, e2]
     go vEnv (App f es      l) = callArityErrors fEnv f es l
                              ++ unboundFunErrors fEnv f l
                              ++ gos vEnv es

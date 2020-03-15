@@ -27,13 +27,14 @@ main = do
   yourTests    <- readTests yourTestsFile
  
   let tests = testGroup "Tests" $
-                [ testGroup "Normalizer"      anfTests
-                , testGroup "Adder"           adderTests
-                , testGroup "Boa"             boaTests
-                , testGroup "Cobra"           cobraTests
-                , testGroup "Diamondback"     diamondTests
-                , testGroup "Egg-Eater"       eggTests
-                , testGroup "Fox"             foxTests
+                -- [ testGroup "Normalizer"      anfTests
+                -- , testGroup "Adder"           adderTests
+                -- , testGroup "Boa"             boaTests
+                -- , testGroup "Cobra"           cobraTests
+                -- , testGroup "Diamondback"     diamondTests
+                -- , testGroup "Egg-Eater"       eggTests 
+                [
+                 testGroup "Fox"             foxTests
                 , testGroup "Your-Tests"      yourTests
                 ]
   defaultMain tests

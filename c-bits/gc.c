@@ -211,7 +211,7 @@ int* mark( int* stack_top       // ESP
     if(curr == ebp){
     // if current is EBP, update EBP, then skip it and ret
       curr++;
-      ebp = (int*)*ebp;
+      ebp = (int*)*ebp; // maybe curr
     }
     else{
       // if curr points to a tuple
@@ -243,7 +243,6 @@ int* forward( int* heap_start
     }
     curr_base +=  size;
   }
-  //fprintf(stderr,"empty: %d\n",curr_empty);
   int new_start = (int)max_address + 4 * blockSize(max_address)- 4*curr_empty;
   return (int*)new_start;
 }
@@ -253,7 +252,6 @@ void redirectTuple(int* addr){
   int* base = int_addr(*addr);
   if(is_tuple(*addr) && (base[1]&1) == 1 && base[1]!= 1){
   // if it is marked tuple
-    //fprintf(stderr,"redirect_addr: %p\n",(int*) *addr); 
     *addr = base[1];
     for(int i = 0; i < tuple_size(base);i++){
       redirectTuple(base+i+2);
@@ -300,34 +298,27 @@ void compact( int* heap_start
   print_heap(curr_base, blockSize(curr_base));
   while(curr_base <= max_address){
     int size = blockSize(curr_base);
-    //fprintf(stderr,"curr_base: %p\n",curr_base);
     if( (curr_base[1] & 1) == 1 && curr_base[1] != 1){
     // if tuple is marked
       int*  new_base = forwardAddr(curr_base);
-      //fprintf(stderr,"new_loc: %p\n",new_base);
       curr_base[1] = 0;  
       for (int i = 0; i< size+2; i++){
         new_base[i] = curr_base[i];
         if(curr_base ==  max_address){
           clear_start = new_base + size;
-          //fprintf(stderr,"Clear clear_start: %p\n",clear_start);
         }
       }
     }
     else if(curr_base[1] == 1){
       if(curr_base ==  max_address){
         clear_start = curr_base + size;
-        fprintf(stderr,"Clear clear_start: %p\n",clear_start);
       }
+       for (int i = 0; i < sizeof(clear_start)+2; i++){ 
+        clear_start[i] = 0;
+      }     
     } 
     curr_base += size;
   }
-  while(clear_start < heap_end){
-    //fprintf(stderr,"Clear curr_base: %p\n",clear_start);
-    *clear_start = 0;
-    clear_start++;
-  } 
-  print_heap(curr_base, blockSize(curr_base));
   return;
 }
 

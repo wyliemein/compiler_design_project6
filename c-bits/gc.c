@@ -297,6 +297,7 @@ void compact( int* heap_start
 {
   int* curr_base = heap_start;
   int* clear_start;
+  print_heap(curr_base, blockSize(curr_base));
   while(curr_base <= max_address){
     int size = blockSize(curr_base);
     //fprintf(stderr,"curr_base: %p\n",curr_base);
@@ -326,6 +327,7 @@ void compact( int* heap_start
     *clear_start = 0;
     clear_start++;
   } 
+  print_heap(curr_base, blockSize(curr_base));
   return;
 }
 

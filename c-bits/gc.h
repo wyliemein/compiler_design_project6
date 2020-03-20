@@ -1,6 +1,6 @@
 #include <stddef.h>
 
-#define DEBUG     0
+#define DEBUG     1
 
 /*******************************************************************************
   Mark, sweep, and compact memory, starting from the root set on the stack.

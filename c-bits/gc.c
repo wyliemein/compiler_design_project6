@@ -49,72 +49,8 @@ typedef struct Value_
   } Value;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Low-level API
+// helper functions
 ////////////////////////////////////////////////////////////////////////////////
-
-int valueInt(Value v){
-  if (v.tag == VAddr || v.tag == VStackAddr) {
-    return addr_int(v.data.addr);
-  } else if (v.tag == VNumber){
-    return (v.data.value << 1);
-  } else { // v.tag == VBoolean
-    return v.data.value;
-  }
-}
-
-Value intValue(int v){
-  Value res;
-  if (is_tuple(v)) {
-    res.tag       = VAddr;
-    res.data.addr = int_addr(v);
-  } else if (is_number(v)) {
-    res.tag   = VNumber;
-    res.data.value = v >> 1;
-  } else {  // is_boolean(v)
-    res.tag   = VBoolean;
-    res.data.value = v;
-  }
-  return res;
-}
-
-Value getElem(int *addr, int i){
-  int vi = tuple_at(addr, i);
-  return intValue(vi);
-}
-
-void  setElem(int *addr, int i, Value v){
-  addr[i+2] = valueInt(v);
-}
-
-void  setStack(int *addr, Value v){
-  *addr = valueInt(v);
-}
-
-Value getStack(int* addr){
-  return intValue(*addr);
-}
-
-int* extStackAddr(Value v){
-  if (v.tag == VStackAddr)
-    return v.data.addr;
-  printf("GC-PANIC: extStackAddr");
-  exit(1);
-}
-
-int* extHeapAddr(Value v){
-  if (v.tag == VAddr)
-    return v.data.addr;
-  printf("GC-PANIC: extHeapAddr");
-  exit(1);
-}
-
-void setSize(int *addr, int n){
-  addr[0] = (n << 1);
-}
-
-int isLive(int *addr){
-  return (addr[1] == VInit ? 0 : 1);
-}
 
 void  setGCWord(int* addr, int gv){
   if (DEBUG) fprintf(stderr, "\nsetGCWord: addr = %p, gv = %d\n", addr, gv);
@@ -123,10 +59,6 @@ void  setGCWord(int* addr, int gv){
 
 int*  forwardAddr(int* addr){
   return int_addr(addr[1]);
-}
-
-Value vHeapAddr(int* addr){
-  return intValue(addr_int(addr));
 }
 
 int round_to_even(int n){
@@ -138,6 +70,21 @@ int blockSize(int *addr){
   return (round_to_even(n+2));
 
 }
+
+int* searchTuple(int v, int* max){
+  if(is_tuple(v)){
+    int* base = int_addr(v);
+    if(base > max){
+      max = base;
+    }
+    setGCWord(base,1);
+    for(int i = 0; i < tuple_size(base);i++){
+      max = searchTuple(base[i+2],max);
+    }
+  }
+  return max;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Frame caller(int* stack_bottom, Frame frame){
@@ -178,23 +125,6 @@ void print_heap(int* heap, int size) {
   }
 }
 
-/*HEPLER FUNCTION*/
-int* searchTuple(int v, int* max){
-  if(is_tuple(v)){
-    int* base = int_addr(v);
-    if(base > max){
-      max = base;
-    }
-    setGCWord(base,1);
-    for(int i = 0; i < tuple_size(base);i++){
-      max = searchTuple(base[i+2],max);
-    }
-  }
-  return max;
-}
-/*HEPLER FUNCTION*/
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // FILL THIS IN, see documentation in 'gc.h' ///////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,25 +162,25 @@ int* forward( int* heap_start
   int curr_empty = 0;
   while(curr_base <= max_address){
     int size = blockSize(curr_base);
-    if(curr_base[1] == 1 && curr_empty != 0){
+    if(curr_base[1] == 1){
     // Tupe is live
       int new_base_addr = (int)curr_base- 4*curr_empty;
-      curr_base[1] += new_base_addr;   
+      curr_base[1] += new_base_addr; 
     }
-    else if(curr_base[1] != 1){
-    // Tuple not live
+    else{
+      //not live increase size of empty positions
       curr_empty += size;
     }
-    curr_base +=  size;
+    curr_base += size;
   }
-  int new_start = (int)max_address + 4 * blockSize(max_address)- 4*curr_empty;
+  int new_start = (int)max_address + 4 * blockSize(max_address) - 4 * curr_empty;
   return (int*)new_start;
 }
 
 
 void redirectTuple(int* addr){
   int* base = int_addr(*addr);
-  if(is_tuple(*addr) && (base[1]&1) == 1 && base[1]!= 1){
+  if(is_tuple(*addr) && (base[1]&1) == 1){
   // if it is marked tuple
     *addr = base[1];
     for(int i = 0; i < tuple_size(base);i++){
@@ -294,31 +224,28 @@ void compact( int* heap_start
             , int* heap_end )
 {
   int* curr_base = heap_start;
-  int* clear_start;
-  print_heap(curr_base, blockSize(curr_base));
+  int* clear_start = max_address;
+  //print_heap(curr_base, blockSize(curr_base));
   while(curr_base <= max_address){
     int size = blockSize(curr_base);
-    if( (curr_base[1] & 1) == 1 && curr_base[1] != 1){
-    // if tuple is marked
-      int*  new_base = forwardAddr(curr_base);
-      curr_base[1] = 0;  
-      for (int i = 0; i< size+2; i++){
-        new_base[i] = curr_base[i];
-        if(curr_base ==  max_address){
-          clear_start = new_base + size;
+      if( (curr_base[1] & 1) == 1){
+      // if tuple is marked
+        int*  new_base = forwardAddr(curr_base); 
+        for (int i = 0; i< size; i++){
+          new_base[i] = curr_base[i];
+          if(curr_base ==  max_address){
+            clear_start = new_base + size;
+          }
+          curr_base[i] = 0;
         }
-      }
-    }
-    else if(curr_base[1] == 1){
-      if(curr_base ==  max_address){
-        clear_start = curr_base + size;
-      }
-       for (int i = 0; i < sizeof(clear_start)+2; i++){ 
-        clear_start[i] = 0;
-      }     
-    } 
+      } 
+    setGCWord(curr_base, 0);
     curr_base += size;
   }
+    while(clear_start < heap_end){
+        *clear_start = 0x0cab005e;
+        clear_start++;
+    }
   return;
 }
 

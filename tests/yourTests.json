@@ -1,3 +1,26 @@
 [
-
+  {
+    "name": "gc-1",
+    "code": "file",
+    "heap": 8,
+    "result": {
+      "value": "(31, 32)\n"
+    }
+  },
+  {
+    "name":"gc-2",
+    "code":"file",
+    "heap":12,
+    "result":{
+      "value":"(31, 32)\n"
+    }
+  },
+  {
+    "name":"gc-3",
+    "code":"file",
+    "heap":12,
+    "result":{
+      "value":"330\n"
+    }
+  }
 ]

@@ -1,0 +1,7 @@
+let y = let tmp = (10, 20)
+ in tmp[0] + tmp[1]
+ , x = (1, 2)
+ , p0 = x[0] + y
+ , p1 = x[1] + y
+in
+ (p0, p1)

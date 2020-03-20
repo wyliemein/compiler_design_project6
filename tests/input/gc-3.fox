@@ -1,0 +1,8 @@
+def foo(p, q):
+ let tmp = (p, q)
+ in tmp[0] + tmp[1]
+let y = foo(10, 20)
+ , x = (y, y + 1)
+ , z = foo(100, 200)
+in
+ x[0] + y + z

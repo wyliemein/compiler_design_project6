@@ -225,11 +225,12 @@ void compact( int* heap_start
       // if tuple is marked
         int*  new_base = forwardAddr(curr_base); 
         for (int i = 0; i< size; i++){
-          new_base[i] = curr_base[i];
-          if(curr_base ==  max_address){
+          if(curr_base !=  max_address){
+            new_base[i] = curr_base[i];
+          }else{
             clear_start = new_base + size;
           }
-          curr_base[i] = 0;
+          //curr_base[i] = 0;
         }
       } 
     setGCWord(curr_base, 0);
